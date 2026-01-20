@@ -13,6 +13,25 @@ local textures = ShaguDPS.textures
 local spairs = ShaguDPS.spairs
 local round = ShaguDPS.round
 
+local segment = ShaguDPS.segment
+local segment_time = function()
+  local s = ShaguDPS.segment
+  if not s or not s.start_time then return 0 end
+
+  -- live combat: update duration continuously
+  if s.active then
+    local dur = GetTime() - s.start_time
+    return dur > 0 and dur or 0
+  end
+
+  -- post combat: use finalized duration
+  if s.duration and s.duration > 0 then
+    return s.duration
+  end
+
+  return 0
+end
+
 -- all known classes
 local classes = {
   WARRIOR = true, MAGE = true, ROGUE = true, DRUID = true, HUNTER = true,
@@ -48,9 +67,9 @@ local view_templates = {
     bar_val = "value",
     bar_lower_max = nil,
     bar_lower_val = nil,
-    chat_string = "%s (%.1f%%)",
-    bar_string = "%s (%.1f%%)",
-    bar_string_params = { "value", "percent" },
+    chat_string = "%s [%s] (%.1f%%)",
+    bar_string = "%s [%s] (%.1f%%)",
+    bar_string_params = { "value", "value_persecond", "percent" },
   },
   [2] = { -- dps
     name = "DPS",
@@ -124,12 +143,15 @@ local sort_algorithms = {
     end
   end,
   per_second = function(t,a,b)
+    local dur = segment_time()
+    if dur <= 0 then return false end
+
     if t[a]["_esum"] and t[b]["_esum"] and t[a]["_esum"] ~= t[b]["_esum"] then
-      return t[b]["_esum"] / t[b]["_ctime"] < t[a]["_esum"] / t[a]["_ctime"]
+      return (t[b]["_esum"] / dur) < (t[a]["_esum"] / dur)
     else
-      return t[b]["_sum"] / t[b]["_ctime"] < t[a]["_sum"] / t[a]["_ctime"]
+      return (t[b]["_sum"] / dur) < (t[a]["_sum"] / dur)
     end
-  end,
+end,
   single_spell = function(t,a,b)
     if t["_effective"] and t["_effective"][a] and t["_effective"][b] and t["_effective"][a] ~= t["_effective"][b] then
       return t["_effective"][b] < t["_effective"][a]
@@ -186,8 +208,10 @@ local function barTooltipShow()
   GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
 
   local segment = this.parent.segment
-  local value = segment[this.unit]["_sum"]
-  local persec = round(segment[this.unit]["_sum"] / segment[this.unit]["_ctime"], 1)
+  local unitdata = segment[this.unit]
+  if not unitdata then return end
+  local value = unitdata["_sum"]  local dur = segment_time()
+  local persec = dur > 0 and round(unitdata["_sum"] / dur, 1) or 0
   local wid = this.parent:GetID()
 
   GameTooltip:AddLine(this.title .. ":")
@@ -196,8 +220,10 @@ local function barTooltipShow()
     GameTooltip:AddDoubleLine("|cffffffffDamage", "|cffffffff" .. value)
     GameTooltip:AddDoubleLine("|cffffffffDamage Per Second", "|cffffffff" .. persec)
   elseif config[wid].view == 3 or config[wid].view == 4 then
-    local evalue = segment[this.unit]["_esum"]
-    local epersec = round(evalue / segment[this.unit]["_ctime"], 1)
+    local evalue = unitdata["_esum"]
+    local dur = segment_time()
+    local epersec = dur > 0 and round(evalue / dur, 1) or 0
+
 
     GameTooltip:AddDoubleLine("|cffffffffHealing", "|cffffffff" .. evalue)
     GameTooltip:AddDoubleLine("|cffaaaaaaOverheal", "|cffcc8888+" .. value - evalue)
@@ -209,13 +235,13 @@ local function barTooltipShow()
   GameTooltip:AddLine(" ")
   GameTooltip:AddLine("Details:")
 
-  for attack, damage in spairs(segment[this.unit], sort_algorithms.single_spell) do
+  for attack, damage in spairs(unitdata, sort_algorithms.single_spell) do
     if attack and not internals[attack] then
-      local percent = damage == 0 and 0 or round(damage / segment[this.unit]["_sum"] * 100,1)
-      if segment[this.unit]["_effective"] and segment[this.unit]["_effective"][attack] then
+      local percent = damage == 0 and 0 or round(damage / unitdata["_sum"] * 100,1)
+      if unitdata["_effective"] and unitdata["_effective"][attack] then
         -- heal / effective heal
-        local effective = segment[this.unit]["_effective"][attack]
-        local epercent = effective == 0 and 0 or round(effective / segment[this.unit]["_esum"] * 100,1)
+        local effective = unitdata["_effective"][attack]
+        local epercent = effective == 0 and 0 or round(effective / unitdata["_esum"] * 100,1)
 
         local str = string.format("|cffcc8888+%s|cffffffff %s (%.1f%%)", damage - effective, effective, epercent)
         GameTooltip:AddDoubleLine("|cffffffff" .. attack, str)
@@ -376,28 +402,35 @@ local function GetCaps(view, values)
     local val = 0
 
     -- calculate normal values
-    if data["_sum"] and data["_ctime"] then
+    if data["_sum"] then
       values.all = values.all + data["_sum"]
       if data["_sum"] > values.best then
         values.best = data["_sum"]
       end
 
-      values.persecond_all = values.persecond_all + data["_sum"] / data["_ctime"]
-      if data["_sum"] / data["_ctime"] > values.persecond_best then
-        values.persecond_best = data["_sum"] / data["_ctime"]
+      local dur = segment_time()
+      if dur > 0 then
+        values.persecond_all = values.persecond_all + (data["_sum"] / dur)
+        if (data["_sum"] / dur) > values.persecond_best then
+          values.persecond_best = data["_sum"] / dur
+        end
       end
     end
 
     -- calculate effective values
-    if data["_esum"] and data["_ctime"] then
+    if data["_esum"] then
       values.effective_all = values.effective_all + data["_esum"]
-      if data["_esum"] > values.effective_all then
-        values.persecond_best = data["_esum"]
+      if data["_esum"] > values.effective_best then
+        values.effective_best = data["_esum"]
       end
 
-      values.effective_persecond_all = values.effective_persecond_all + data["_esum"] / data["_ctime"]
-      if data["_esum"] / data["_ctime"] > values.effective_persecond_best then
-        values.effective_persecond_best = data["_esum"] / data["_ctime"]
+
+      local dur = segment_time()
+      if dur > 0 then
+        values.effective_persecond_all = values.effective_persecond_all + (data["_esum"] / dur)
+        if (data["_esum"] / dur) > values.effective_persecond_best then
+          values.effective_persecond_best = data["_esum"] / dur
+        end
       end
     end
   end
@@ -410,16 +443,18 @@ local function GetData(unitdata, values)
 
   -- read normal values
   values.value = unitdata["_sum"]
-  values.value_persecond = round(values.value / unitdata["_ctime"], 1)
-  values.percent = values.value == 0 and 0 or round(values.value / values.all * 100,1)
-  values.percent_persecond = values.value_persecond == 0 and 0 or round(values.value_persecond / values.persecond_all * 100, 1)
+  local dur = segment_time()
+  values.value_persecond = dur > 0 and round(values.value / dur, 1) or 0
+  values.percent = values.all == 0 and 0 or round(values.value / values.all * 100, 1)
+  values.percent_persecond = values.persecond_all == 0 and 0 or round(values.value_persecond / values.persecond_all * 100, 1)
 
   -- read effective values
   if unitdata["_esum"] then
     values.effective_value = unitdata["_esum"]
-    values.effective_value_persecond = round(values.effective_value / unitdata["_ctime"], 1)
+    local dur = segment_time()
+    values.effective_value_persecond = dur > 0 and round(values.effective_value / dur, 1) or 0
     values.effective_percent = values.effective_value == 0 and 0 or round(values.effective_value / values.effective_all * 100, 1)
-    values.effective_percent_persecond = values.effective_value_persecond == 0 and 0 or round(values.effective_value_persecond / values.effective_persecond_all * 100,1)
+    values.effective_percent_persecond = values.effective_persecond_all == 0 and 0 or round(values.effective_value_persecond / values.effective_persecond_all * 100, 1)
     values.uneffective_value = values.value - values.effective_value
     values.uneffective_value_persecond = values.value_persecond - values.effective_value_persecond
   else

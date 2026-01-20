@@ -1,4 +1,11 @@
 ShaguDPS = {}
+-- global combat segment
+ShaguDPS.segment = {
+  active = nil,
+  start_time = 0,
+  end_time = 0,
+  duration = 0,
+}
 
 -- initialize default question dialog
 StaticPopupDialogs["SHAGUMETER_QUESTION"] = {
@@ -81,8 +88,6 @@ local config = {
 
 local internals = {
   ["_sum"] = true,
-  ["_ctime"] = true,
-  ["_tick"] = true,
   ["_esum"] = true,
   ["_effective"] = true,
 }

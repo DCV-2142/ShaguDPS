@@ -5,6 +5,9 @@ local data = ShaguDPS.data
 local config = ShaguDPS.config
 local round = ShaguDPS.round
 
+local segment = ShaguDPS.segment
+
+
 -- populate all valid player units
 local validUnits = { ["player"] = true }
 for i=1,4 do validUnits["party" .. i] = true end
@@ -45,56 +48,30 @@ local function trim(str)
   return gsub(str, "^%s*(.-)%s*$", "%1")
 end
 
-local function combat()
-  -- check if in combat
-  if UnitAffectingCombat("player") or UnitAffectingCombat("pet") then
-    return true
-  end
-
-  local raid = GetNumRaidMembers()
-  local group = GetNumPartyMembers()
-
-  if raid >= 1 then
-    for i = 1, raid do
-      -- check if any raid member is infight
-      if UnitAffectingCombat("raid"..i) or UnitAffectingCombat("raidpet"..i) then return true end
-    end
-  else
-    for i = 1, group do
-      -- check if any group member is infight
-      if UnitAffectingCombat("party"..i) or UnitAffectingCombat("partypet"..i) then return true end
-    end
-  end
-
-  return nil
-end
-
-local start_next_segment = nil
-parser.combat = CreateFrame("Frame", "ShaguDPSCombatState", UIParent)
+parser.combat = CreateFrame("Frame")
 parser.combat:RegisterEvent("PLAYER_REGEN_DISABLED")
 parser.combat:RegisterEvent("PLAYER_REGEN_ENABLED")
 
--- scan and trigger combat state changes
-parser.combat.UpdateState = function(self)
-  local state = combat() == true and "COMBAT" or "NO_COMBAT"
-  if not self.oldstate or self.oldstate ~= state then
-    self.oldstate = state
+parser.combat:SetScript("OnEvent", function()
+  if event == "PLAYER_REGEN_DISABLED" then
+    -- fight start
+    segment.active = true
+    segment.start_time = GetTime()
+    segment.end_time = 0
+    segment.duration = 0
 
-    if state == "NO_COMBAT" then
-      start_next_segment = true
+    -- reset current segment data
+    ShaguDPS.data.damage[1] = {}
+    ShaguDPS.data.heal[1] = {}
+
+  elseif event == "PLAYER_REGEN_ENABLED" then
+    -- fight end
+    if segment.active then
+      segment.end_time = GetTime()
+      segment.duration = segment.end_time - segment.start_time
+      segment.active = nil
     end
   end
-end
-
--- check when player leaves/enters combat
-parser.combat:SetScript("OnEvent", function()
-  this:UpdateState()
-end)
-
--- check each second
-parser.combat:SetScript("OnUpdate", function()
-  if ( this.tick or 1) > GetTime() then return else this.tick = GetTime() + 1 end
-  this:UpdateState()
 end)
 
 parser.ScanName = function(self, name)
@@ -159,14 +136,6 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
     return
   end
 
-  -- clear "current" on fight start
-  if start_next_segment and data["classes"][source] and data["classes"][source] ~= "__other__" then
-    data["damage"][1] = {}
-    data["heal"][1] = {}
-
-    start_next_segment = nil
-  end
-
   -- calculate effective value (heal)
   local effective = 0
   if datatype == "heal" then
@@ -189,7 +158,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
         -- create owner table if not yet existing
         local owner = data["classes"][source]
         if not entry[owner] and parser:ScanName(owner) then
-          entry[owner] = { ["_sum"] = 0, ["_ctime"] = 1 }
+          entry[owner] = { ["_sum"] = 0 }
         end
       elseif not type then
         -- invalid or disabled unit type
@@ -197,7 +166,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
       end
 
       -- create base damage table
-      entry[source] = { ["_sum"] = 0, ["_ctime"] = 1 }
+      entry[source] = { ["_sum"] = 0 }
     end
 
     -- write pet damage into owners data if enabled
@@ -214,7 +183,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
 
       -- write data into owner
       if not entry[source] then
-        entry[source] = { ["_sum"] = 0, ["_ctime"] = 1 }
+        entry[source] = { ["_sum"] = 0 }
       end
     end
 
@@ -230,17 +199,6 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
         -- write effective healing per spell
         entry[source]["_effective"] = entry[source]["_effective"] or {}
         entry[source]["_effective"][action] = (entry[source]["_effective"][action] or 0) + tonumber(effective)
-      end
-
-      entry[source]["_ctime"] = entry[source]["_ctime"] or 1
-      entry[source]["_tick"] = entry[source]["_tick"] or GetTime()
-
-      if entry[source]["_tick"] + 5 < GetTime() then
-        entry[source]["_tick"] = GetTime()
-        entry[source]["_ctime"] = entry[source]["_ctime"] + 5
-      else
-        entry[source]["_ctime"] = entry[source]["_ctime"] + (GetTime() - entry[source]["_tick"])
-        entry[source]["_tick"] = GetTime()
       end
     end
   end
