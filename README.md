@@ -1,11 +1,17 @@
-# ShaguDPS
+# ShaguDPS - Raidboss oriented version(experimental)
+This fork exists because I was very dissatisfied with the way ShaguDPS calculated DPS. Sorting by Damage was relatively accurate, whereas DPS sorting was all over the place.
+This version will hopefully display DPS that is a lot closer to what you'd see on turtlogs.<br/><br/>
 
-A very small and lightweight damage meter. The combat log is parsed in a locale-independent way and should work on every 1.12 (vanilla) and 2.4.3 (burning crusade) based client.
-
+**What's different:**<br/>
+The time tracking logic has been changed. ShaguDPS no longer tracks time for each individual player. Now there is a global timer which starts only when **you** enter combat and it stops when **you** exit combat.<br/>
+This method works best when the entire party/raid enters combat at the same time as you, which is the most common raid boss scenario.<br/>
+Obviously, this DPS calculation method is inaccurate in the open world, in dungeons, in raid trash fights and generally any situation where people do not all enter combat at the same time as you.<br/>
+<br/><br/><br/><br/><br/><br/><br/>
+# Legacy description
 The goal is not to compete with the big players like [DPSMate](https://github.com/Geigerkind/DPSMate) or [Recount](https://www.curseforge.com/wow/addons/recount),
 but instead to offer a simple damage tracker, that is fast and uses the least amount of resources as possible.
-
-**So don't expect to see anything fancy here.**
+<br/>
+So don't expect to see anything fancy here.
 
 ![ShaguDPS](screenshot.jpg)
 
