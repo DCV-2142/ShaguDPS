@@ -1,17 +1,33 @@
-# ShaguDPS - Raidboss oriented version(experimental)
+# ShaguDPS - Raid oriented version(experimental)
 This fork exists because I was very dissatisfied with the way ShaguDPS calculated DPS. Sorting by Damage was relatively accurate, whereas DPS sorting was all over the place.
-This version will hopefully display DPS that is a lot closer to what you'd see on turtlogs.<br/><br/>
+This version will hopefully display DPS that is a lot closer to what you'd see on turtlogs. You can see a detailed explanation of what changed below.<br/><br/>
 
 **What's different:**<br/>
-The time tracking logic has been changed. ShaguDPS no longer tracks time for each individual player. Now there is a global timer which starts only when **you** enter combat and it stops when **you** exit combat.<br/>
-This method works best when the entire party/raid enters combat at the same time as you, which is the most common raid boss scenario.<br/>
-Obviously, this DPS calculation method is inaccurate in the open world, in dungeons, in raid trash fights and generally any situation where people do not all enter combat at the same time as you.<br/>
+1. The time tracking logic has been changed.<br>
+   ShaguDPS used to assign a unique combat timer to each player and calculate their DPS based on that. The timer would start when they attacked anything and stop 5s after their last attack. This meant that being afk during a fight and only using a big skill once or twice would make you appear like you are the #1 DPS in the ranking.<br>
+   Now:<br>
+   - When the player is in a party/raid, the addon now uses a group-wide segment timer which starts when ***<ins>one</ins>*** of your group members enter combat and it stops when ***<ins>all</ins>*** of you are out of combat. This method is the same timing method used in turtlogs.com.<br/>
+   - When the player is solo, ShaguDPS defaults back to its original timing behavior.
+2. Due to the change above, the "Track All Nearby Units" option is automatically disabled when the player is in a group, because it uses the original combat timer behavior.
+3. All the "Current" tables remain visible after the fight ends and will reset only when the next fight starts. They used to disappear only 5 seconds after a fight ended in the original version.
+4. If you use multiple windows: every new window that appears will have the same size as your default window. You no longer have to resize them every time.
+This version *should* be lighter on the CPU, due to not having to deal with 40 individual combat timers anymore.
 <br/><br/><br/><br/><br/><br/><br/>
+
+
+
+
 # Legacy description
+# ShaguDPS
+
+A very small and lightweight damage meter. The combat log is parsed in a locale-independent way and should work on every 1.12 (vanilla) and 2.4.3 (burning crusade) based client.
+
 The goal is not to compete with the big players like [DPSMate](https://github.com/Geigerkind/DPSMate) or [Recount](https://www.curseforge.com/wow/addons/recount),
 but instead to offer a simple damage tracker, that is fast and uses the least amount of resources as possible.
 <br/>
 So don't expect to see anything fancy here.
+
+**So don't expect to see anything fancy here.**
 
 ![ShaguDPS](screenshot.jpg)
 

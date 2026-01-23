@@ -153,7 +153,22 @@ local function CreateConfig(self, caption, entry, check)
     end)
 
     input:SetScript("OnClick", function()
+      -- Special rule: Track-all cannot be enabled while in a party/raid.
+      if entry == "track_all_units" then
+        if GetNumRaidMembers() > 0 or GetNumPartyMembers() > 0 then
+          -- Force it back off immediately (visual + config)
+          this:SetChecked(false)
+          config[entry] = 0
+          ShaguDPS_Config = config
+
+          DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00ShaguDPS:|r Track-all is disabled while in a party/raid. Leave the group to enable it.")
+          window.Refresh(true)
+          return
+        end
+      end
+
       config[entry] = this:GetChecked() and 1 or 0
+      ShaguDPS_Config = config
       window.Refresh(true)
     end)
 

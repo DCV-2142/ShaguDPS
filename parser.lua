@@ -5,9 +5,6 @@ local data = ShaguDPS.data
 local config = ShaguDPS.config
 local round = ShaguDPS.round
 
-local segment = ShaguDPS.segment
-
-
 -- populate all valid player units
 local validUnits = { ["player"] = true }
 for i=1,4 do validUnits["party" .. i] = true end
@@ -48,30 +45,156 @@ local function trim(str)
   return gsub(str, "^%s*(.-)%s*$", "%1")
 end
 
-parser.combat = CreateFrame("Frame")
+local function combat()
+  -- check if in combat
+  if UnitAffectingCombat("player") or UnitAffectingCombat("pet") then
+    return true
+  end
+
+  local raid = GetNumRaidMembers()
+  local group = GetNumPartyMembers()
+
+  if raid >= 1 then
+    for i = 1, raid do
+      -- check if any raid member is infight
+      if UnitAffectingCombat("raid"..i) or UnitAffectingCombat("raidpet"..i) then return true end
+    end
+  else
+    for i = 1, group do
+      -- check if any group member is infight
+      if UnitAffectingCombat("party"..i) or UnitAffectingCombat("partypet"..i) then return true end
+    end
+  end
+
+  return nil
+end
+
+-- segment timing (shared timer in party/raid)
+parser.segment_active = nil
+parser.segment_start = 0
+parser.segment_duration_frozen = 0
+parser.segment_total = 0
+
+-- reset current segment tables (but keep overall)
+function parser:ResetCurrent()
+  data["damage"][1] = {}
+  data["heal"][1] = {}
+end
+
+-- reset all segment timing
+function parser:ResetSegments()
+  self.segment_active = nil
+  self.segment_start = 0
+  self.segment_duration_frozen = 0
+  self.segment_total = 0
+end
+
+function parser:GetCurrentSegmentDuration()
+  if self.segment_active then
+    return GetTime() - (self.segment_start or GetTime())
+  else
+    return self.segment_duration_frozen or 0
+  end
+end
+
+function parser:GetOverallDuration()
+  local cur = 0
+  if self.segment_active then cur = self:GetCurrentSegmentDuration() end
+  return (self.segment_total or 0) + cur
+end
+
+-- push the chosen timer values into _ctime so window.lua can stay mostly unchanged
+function parser:UpdateTimes()
+  local cur = self:GetCurrentSegmentDuration()
+  local overall = self:GetOverallDuration()
+
+  -- avoid division by zero / DPS spikes
+  if cur < 0.1 then cur = 0.1 end
+  if overall < 0.1 then overall = 0.1 end
+
+  local datatypes = { "damage", "heal" }
+
+  for _, dtype in pairs(datatypes) do
+    -- current segment (index 1)
+    for _, t in pairs(data[dtype][1]) do
+      if type(t) == "table" and t["_sum"] then
+        t["_ctime"] = cur
+      end
+    end
+
+    -- overall segment (index 0)
+    for _, t in pairs(data[dtype][0]) do
+      if type(t) == "table" and t["_sum"] then
+        t["_ctime"] = overall
+      end
+    end
+  end
+end
+
+function parser:StartSegment()
+  self:ResetCurrent()
+  self.segment_active = true
+  self.segment_start = GetTime()
+  self.segment_duration_frozen = 0
+end
+
+function parser:EndSegment()
+  if not self.segment_active then return end
+  local dur = GetTime() - (self.segment_start or GetTime())
+  if dur < 0 then dur = 0 end
+
+  self.segment_active = nil
+  self.segment_duration_frozen = dur
+  self.segment_total = (self.segment_total or 0) + dur
+end
+
+parser.combat = CreateFrame("Frame", "ShaguDPSCombatState", UIParent)
 parser.combat:RegisterEvent("PLAYER_REGEN_DISABLED")
 parser.combat:RegisterEvent("PLAYER_REGEN_ENABLED")
 
-parser.combat:SetScript("OnEvent", function()
-  if event == "PLAYER_REGEN_DISABLED" then
-    -- fight start
-    segment.active = true
-    segment.start_time = GetTime()
-    segment.end_time = 0
-    segment.duration = 0
+-- scan and trigger combat state changes
+parser.combat.UpdateState = function(self)
+  local state = combat() == true and "COMBAT" or "NO_COMBAT"
 
-    -- reset current segment data
-    ShaguDPS.data.damage[1] = {}
-    ShaguDPS.data.heal[1] = {}
+-- initialize
+if not self.oldstate then
+  self.oldstate = state
 
-  elseif event == "PLAYER_REGEN_ENABLED" then
-    -- fight end
-    if segment.active then
-      segment.end_time = GetTime()
-      segment.duration = segment.end_time - segment.start_time
-      segment.active = nil
+  -- IMPORTANT: if we initialize while already in combat,
+  -- we must start the segment immediately or everyone gets cur=0 -> 0.1 clamp
+  if state == "COMBAT" then
+    parser:StartSegment()
+  end
+
+  return
+end
+
+  -- state change
+  if self.oldstate ~= state then
+    self.oldstate = state
+
+    if state == "COMBAT" then
+      parser:StartSegment()
+    else
+      parser:EndSegment()
+    end
+
+    -- refresh windows immediately on segment boundary
+    for id, callback in pairs(parser.callbacks.refresh) do
+      callback()
     end
   end
+end
+
+-- check when player leaves/enters combat
+parser.combat:SetScript("OnEvent", function()
+  this:UpdateState()
+end)
+
+-- check each second
+parser.combat:SetScript("OnUpdate", function()
+  if ( this.tick or 1) > GetTime() then return else this.tick = GetTime() + 1 end
+  this:UpdateState()
 end)
 
 parser.ScanName = function(self, name)
@@ -114,6 +237,16 @@ parser.ScanName = function(self, name)
     end
   end
 
+-- don't allow track all nearby units while in a party/raid
+if config.track_all_units == 1 then
+  if GetNumRaidMembers() > 0 or GetNumPartyMembers() > 0 then
+    -- auto-disable and warn
+    DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00ShaguDPS:|r Track all Nearby Units is disabled while in a party/raid. Leave the group to enable it.")
+    config.track_all_units = 0
+    return nil
+  end
+end
+
   -- assign class other if tracking of all units is set
   if config.track_all_units == 1 then
     data["classes"][name] = data["classes"][name] or "__other__"
@@ -135,6 +268,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
   if datatype == "damage" and source == target then
     return
   end
+
 
   -- calculate effective value (heal)
   local effective = 0
@@ -158,7 +292,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
         -- create owner table if not yet existing
         local owner = data["classes"][source]
         if not entry[owner] and parser:ScanName(owner) then
-          entry[owner] = { ["_sum"] = 0 }
+          entry[owner] = { ["_sum"] = 0, ["_ctime"] = 1 }
         end
       elseif not type then
         -- invalid or disabled unit type
@@ -166,7 +300,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
       end
 
       -- create base damage table
-      entry[source] = { ["_sum"] = 0 }
+      entry[source] = { ["_sum"] = 0, ["_ctime"] = 1 }
     end
 
     -- write pet damage into owners data if enabled
@@ -183,7 +317,7 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
 
       -- write data into owner
       if not entry[source] then
-        entry[source] = { ["_sum"] = 0 }
+        entry[source] = { ["_sum"] = 0, ["_ctime"] = 1 }
       end
     end
 
@@ -199,6 +333,24 @@ parser.AddData = function(self, source, action, target, value, school, datatype)
         -- write effective healing per spell
         entry[source]["_effective"] = entry[source]["_effective"] or {}
         entry[source]["_effective"][action] = (entry[source]["_effective"][action] or 0) + tonumber(effective)
+      end
+
+      -- In group mode we use segment time; no per-event ctime needed.
+      -- In solo "track all units" mode we keep the legacy event-based ctime for now
+      -- (we'll replace it with GUID combat timing later).
+      if config.track_all_units == 1 and GetNumRaidMembers() == 0 and GetNumPartyMembers() == 0 then
+        entry[source]["_ctime"] = entry[source]["_ctime"] or 1
+        entry[source]["_tick"] = entry[source]["_tick"] or GetTime()
+
+        if entry[source]["_tick"] + 5 < GetTime() then
+          entry[source]["_tick"] = GetTime()
+          entry[source]["_ctime"] = entry[source]["_ctime"] + 5
+        else
+          entry[source]["_ctime"] = entry[source]["_ctime"] + (GetTime() - entry[source]["_tick"])
+          entry[source]["_tick"] = GetTime()
+        end
+      else
+        entry[source]["_ctime"] = entry[source]["_ctime"] or 1
       end
     end
   end
