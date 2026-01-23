@@ -1,4 +1,4 @@
-# ShaguDPS - Raid oriented version(experimental)
+# ShaguDPS - Raid oriented version
 This fork exists because I was very dissatisfied with the way ShaguDPS calculated DPS. Sorting by Damage was relatively accurate, whereas DPS sorting was all over the place.
 This version will hopefully display DPS that is a lot closer to what you'd see on turtlogs. You can see a detailed explanation of what changed below.<br/><br/>
 
