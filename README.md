@@ -24,8 +24,6 @@ A very small and lightweight damage meter. The combat log is parsed in a locale-
 
 The goal is not to compete with the big players like [DPSMate](https://github.com/Geigerkind/DPSMate) or [Recount](https://www.curseforge.com/wow/addons/recount),
 but instead to offer a simple damage tracker, that is fast and uses the least amount of resources as possible.
-<br/>
-So don't expect to see anything fancy here.
 
 **So don't expect to see anything fancy here.**
 
