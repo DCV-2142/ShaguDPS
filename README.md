@@ -6,12 +6,12 @@ This version will hopefully display DPS that is a lot closer to what you'd see o
 1. The time tracking logic has been changed.<br>
    ShaguDPS used to assign a unique combat timer to each player and calculate their DPS based on that. The timer would start when they attacked anything and stop 5s after their last attack. This meant that being afk during a fight and only using a big skill once or twice would make you appear like you are the #1 DPS in the ranking.<br>
    Now:<br>
-   - When the player is in a party/raid, the addon now uses a group-wide segment timer which starts when ***<ins>one</ins>*** of your group members enter combat and it stops when ***<ins>all</ins>*** of you are out of combat. This method is the same timing method used in turtlogs.com.<br/>
-   - When the player is solo, ShaguDPS defaults back to its original timing behavior.
-2. Due to the change above, the "Track All Nearby Units" option is automatically disabled when the player is in a group, because it uses the original combat timer behavior.
+   - When you are in a party/raid, the addon now uses a group-wide segment timer which starts when ***<ins>one</ins>*** of your group members enter combat and it stops when ***<ins>all</ins>*** of you are out of combat. This method is the same timing method used in turtlogs.com.<br/>
+   - When you are solo, ShaguDPS defaults back to its original timing behavior.
+2. Due to the change above, the "Track All Nearby Units" option is automatically disabled when you are in a group, because it uses the original combat timer behavior.
 3. All the "Current" tables remain visible after the fight ends and will reset only when the next fight starts. They used to disappear only 5 seconds after a fight ended in the original version.
 4. If you use multiple windows: every new window that appears will have the same size as your default window. You no longer have to resize them every time.
-This version *should* be lighter on the CPU, due to not having to deal with 40 individual combat timers anymore.
+<br><br>This version *should* be lighter on the CPU, due to not having to deal with 40 individual combat timers anymore.
 <br/><br/><br/><br/><br/><br/><br/>
 
 
