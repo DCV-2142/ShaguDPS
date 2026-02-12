@@ -19,6 +19,30 @@ local classes = {
   SHAMAN = true, PRIEST = true, WARLOCK = true, PALADIN = true,
 }
 
+local class_icon_coords = {
+  WARRIOR = {0.000, 0.122, 0.000, 0.123},
+  MAGE = {0.125, 0.247, 0.000, 0.123},
+  ROGUE = {0.250, 0.372, 0.000, 0.123},
+  DRUID = {0.375, 0.497, 0.000, 0.123},
+  HUNTER = {0.000, 0.122, 0.125, 0.248},
+  SHAMAN = {0.125, 0.247, 0.125, 0.248},
+  PRIEST = {0.250, 0.372, 0.125, 0.248},
+  WARLOCK = {0.373, 0.504, 0.121, 0.238},
+  PALADIN = {0.000, 0.122, 0.250, 0.373}
+}
+
+local class_colors = {
+  WARRIOR = {r=224/255, g=163/255, b=97/255},
+  MAGE = {r=51/255, g=199/255, b=252/255},
+  ROGUE = {r=255/255, g=243/255, b=104/255},
+  DRUID = {r=255/255, g=125/255, b=10/255},
+  HUNTER = {r=171/255, g=237/255, b=79/255},
+  SHAMAN = {r=10/255, g=125/255, b=237/255},
+  PRIEST = {r=255/255, g=255/255, b=255/255},
+  WARLOCK = {r=133/255, g=97/255, b=237/255},
+  PALADIN = {r=245/255, g=140/255, b=186/255},
+}
+
 -- default backdrops
 local backdrop = {
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -295,6 +319,13 @@ local function CreateBar(parent, i, background)
   parent.bars[i].lowerBar:SetHeight(config.height - config.spacing)
   parent.bars[i].lowerBar:SetFrameLevel(2)
 
+  parent.bars[i].classIcon = parent.bars[i].classIcon or parent.bars[i]:CreateTexture(nil, "OVERLAY")
+  parent.bars[i].classIcon:ClearAllPoints()
+  parent.bars[i].classIcon:SetWidth(parent.bars[i]:GetHeight())
+  parent.bars[i].classIcon:SetHeight(parent.bars[i]:GetHeight())
+  parent.bars[i].classIcon:SetPoint("LEFT", parent.bars[i], "LEFT", 2, 0)
+  parent.bars[i].classIcon:Hide()
+
   parent.bars[i].textLeft = parent.bars[i].textLeft or parent.bars[i]:CreateFontString("Status", "OVERLAY", "GameFontNormal")
   parent.bars[i].textLeft:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
   parent.bars[i].textLeft:SetJustifyH("LEFT")
@@ -442,6 +473,9 @@ local function GetData(unitdata, values)
     values.name = unit
   end
 
+  local unit_class = data["classes"][unit]
+  values.class = classes[unit_class] and unit_class or nil
+
   -- write color into view
   -- default to faded name colors
   local r, g, b = str2rgb(values.name)
@@ -451,11 +485,14 @@ local function GetData(unitdata, values)
   values.color.b = b / 4 + .4
 
   -- replace color by class colors if possible
-  if classes[data["classes"][unit]] then
+  if classes[unit_class] then
     -- set color to player class colors
-    values.color.r = RAID_CLASS_COLORS[data["classes"][unit]].r
-    values.color.g = RAID_CLASS_COLORS[data["classes"][unit]].g
-    values.color.b = RAID_CLASS_COLORS[data["classes"][unit]].b
+    local c = class_colors[unit_class] or RAID_CLASS_COLORS[class]
+    if c then
+      values.color.r = c.r
+      values.color.g = c.g
+      values.color.b = c.b
+    end
 
     if config.pastel == 1 then
       values.color.r = (values.color.r + .5) * .5
@@ -589,6 +626,20 @@ local function Refresh(self, force, report)
       self.bars[bar]:SetStatusBarColor(self.values.color.r, self.values.color.g, self.values.color.b)
       self.bars[bar].textLeft:SetText(i .. ". " .. self.values.name)
 
+      if self.bars[bar].classIcon then
+        local coords = self.values.class and class_icon_coords[self.values.class]
+        if coords then
+          self.bars[bar].classIcon:SetTexture("Interface\\Addons\\ShaguDPS\\img\\ToxiClasses")
+          self.bars[bar].classIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+          self.bars[bar].classIcon:Show()
+          self.bars[bar].textLeft:ClearAllPoints()
+          self.bars[bar].textLeft:SetPoint("TOPLEFT", self.bars[bar], "TOPLEFT", self.bars[bar].classIcon:GetWidth() + 2, 1)
+          self.bars[bar].textLeft:SetPoint("BOTTOMRIGHT", self.bars[bar], "BOTTOMRIGHT", -5, 0)
+        else
+          self.bars[bar].classIcon:Hide()
+        end
+      end
+
       local a = template.bar_string_params
       local line = string.format(template.bar_string,
         self.values[a[1]], self.values[a[2]], self.values[a[3]], self.values[a[4]], self.values[a[5]])
@@ -714,7 +765,7 @@ local function CreateWindow(wid)
   frame.btnSegment:SetBackdropBorderColor(.4,.4,.4,1)
 
   frame.btnSegment.caption = frame.btnSegment:CreateFontString("ShaguDPSTitle", "OVERLAY", "GameFontWhite")
-  frame.btnSegment.caption:SetFont(STANDARD_TEXT_FONT, 9)
+  frame.btnSegment.caption:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
   frame.btnSegment.caption:SetText("Overall")
   frame.btnSegment.caption:SetAllPoints()
   frame.btnSegment.tooltip = { "Select Segment", "|cffffffffOverall, Current" }
