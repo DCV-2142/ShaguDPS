@@ -65,7 +65,7 @@ local backdrop_border = {
 
 local bar_border = {
   edgeFile = "Interface\\BUTTONS\\WHITE8X8",
-  tile = true, tileSize = 16, edgeSize = 16,
+  tile = true, tileSize = 16, edgeSize = 2,
   insets = { left = 3, right = 3, top = 3, bottom = 3 }
 }
 
@@ -323,6 +323,10 @@ local function CreateBar(parent, i, background)
   parent.bars[i].border:SetFrameLevel(1)
   parent.bars[i].border:SetBackdrop(bar_border)
   parent.bars[i].border:SetBackdropBorderColor(0, 0, 0, 1)
+
+  parent.bars[i].bg = parent.bars[i].bg or parent.bars[i]:CreateTexture(nil, "BACKGROUND")
+  parent.bars[i].bg:SetTexture(textures[config.texture] or textures[1])
+  parent.bars[i].bg:SetAllPoints(parent.bars[i])
 
   parent.bars[i].lowerBar = parent.bars[i].lowerBar or CreateFrame("StatusBar", "ShaguDPSLowerBar" .. i, parent)
   parent.bars[i].lowerBar:SetStatusBarTexture(textures[config.texture] or textures[1])
@@ -583,6 +587,7 @@ local function Refresh(self, force, report)
     bar.lowerBar:Hide()
     bar:Hide()
     bar.border:Hide()
+    bar.bg:Hide()
   end
 
   -- set view to damage or heal
@@ -639,6 +644,7 @@ local function Refresh(self, force, report)
 
       self.bars[bar]:SetStatusBarColor(self.values.color.r, self.values.color.g, self.values.color.b)
       self.bars[bar].textLeft:SetText(i .. ". " .. self.values.name)
+      self.bars[bar].bg:SetTexture(self.values.color.r * 0.5, self.values.color.g * 0.5, self.values.color.b * 0.5, 0.8)
 
       if self.bars[bar].classIcon then
         local coords = self.values.class and class_icon_coords[self.values.class]
@@ -661,6 +667,7 @@ local function Refresh(self, force, report)
       self.bars[bar].textRight:SetText(line)
       self.bars[bar]:Show()
       self.bars[bar].border:Show()
+      self.bars[bar].bg:Show()
 
       -- report to chat if flag is set
       if report and i <= 10 then
