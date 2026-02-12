@@ -63,6 +63,12 @@ local backdrop_border = {
   insets = { left = 3, right = 3, top = 3, bottom = 3 }
 }
 
+local bar_border = {
+  edgeFile = "Interface\\BUTTONS\\WHITE8X8",
+  tile = true, tileSize = 16, edgeSize = 16,
+  insets = { left = 3, right = 3, top = 3, bottom = 3 }
+}
+
 -- templates describing the window contents
 local view_templates = {
   [1] = { -- damage
@@ -311,6 +317,13 @@ local function CreateBar(parent, i, background)
   parent.bars[i]:SetHeight(config.height - config.spacing)
   parent.bars[i]:SetFrameLevel(4)
 
+  parent.bars[i].border = parent.bars[i].border or CreateFrame("Frame", nil, parent)
+  parent.bars[i].border:SetPoint("TOPLEFT", parent.bars[i], "TOPLEFT", -2, 2)
+  parent.bars[i].border:SetPoint("BOTTOMRIGHT", parent.bars[i], "BOTTOMRIGHT", 2, -2)
+  parent.bars[i].border:SetFrameLevel(1)
+  parent.bars[i].border:SetBackdrop(bar_border)
+  parent.bars[i].border:SetBackdropBorderColor(0, 0, 0, 1)
+
   parent.bars[i].lowerBar = parent.bars[i].lowerBar or CreateFrame("StatusBar", "ShaguDPSLowerBar" .. i, parent)
   parent.bars[i].lowerBar:SetStatusBarTexture(textures[config.texture] or textures[1])
   parent.bars[i].lowerBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -config.height * (i-1) - 22)
@@ -364,7 +377,7 @@ local function btnEnter()
     GameTooltip:Show()
   end
 
-  this:SetBackdropBorderColor(1,.8,0,1)
+  this:SetBackdropBorderColor(1,.8,0,0)
 end
 
 local function btnLeave()
@@ -372,7 +385,7 @@ local function btnLeave()
     GameTooltip:Hide()
   end
 
-  this:SetBackdropBorderColor(.4,.4,.4,1)
+  this:SetBackdropBorderColor(.4,.4,.4,0)
 end
 
 local function announce(text)
@@ -569,6 +582,7 @@ local function Refresh(self, force, report)
   for id, bar in pairs(self.bars) do
     bar.lowerBar:Hide()
     bar:Hide()
+    bar.border:Hide()
   end
 
   -- set view to damage or heal
@@ -646,6 +660,7 @@ local function Refresh(self, force, report)
 
       self.bars[bar].textRight:SetText(line)
       self.bars[bar]:Show()
+      self.bars[bar].border:Show()
 
       -- report to chat if flag is set
       if report and i <= 10 then
