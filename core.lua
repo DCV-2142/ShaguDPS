@@ -14,7 +14,7 @@ local textures = {
   "Interface\\BUTTONS\\WHITE8X8",
   "Interface\\TargetingFrame\\UI-StatusBar",
   "Interface\\Tooltips\\UI-Tooltip-Background",
-  "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar"
+  "Interface\\Addons\\ShaguDPS\\img\\ToxiUI-g2-ToxiUI-clean"
 }
 
 -- a basic rounding function

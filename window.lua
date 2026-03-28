@@ -19,6 +19,30 @@ local classes = {
   SHAMAN = true, PRIEST = true, WARLOCK = true, PALADIN = true,
 }
 
+local class_icon_coords = {
+  WARRIOR = {0.000, 0.122, 0.000, 0.123},
+  MAGE = {0.125, 0.247, 0.000, 0.123},
+  ROGUE = {0.250, 0.372, 0.000, 0.123},
+  DRUID = {0.375, 0.497, 0.000, 0.123},
+  HUNTER = {0.000, 0.122, 0.125, 0.248},
+  SHAMAN = {0.125, 0.247, 0.125, 0.248},
+  PRIEST = {0.250, 0.372, 0.125, 0.248},
+  WARLOCK = {0.373, 0.504, 0.121, 0.238},
+  PALADIN = {0.000, 0.122, 0.250, 0.373}
+}
+
+local class_colors = {
+  WARRIOR = {r=224/255, g=163/255, b=97/255},
+  MAGE = {r=51/255, g=199/255, b=252/255},
+  ROGUE = {r=255/255, g=243/255, b=104/255},
+  DRUID = {r=255/255, g=125/255, b=10/255},
+  HUNTER = {r=171/255, g=237/255, b=79/255},
+  SHAMAN = {r=10/255, g=125/255, b=237/255},
+  PRIEST = {r=255/255, g=255/255, b=255/255},
+  WARLOCK = {r=133/255, g=97/255, b=237/255},
+  PALADIN = {r=245/255, g=140/255, b=186/255},
+}
+
 -- default backdrops
 local backdrop = {
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -36,6 +60,12 @@ local backdrop_window = {
 local backdrop_border = {
   edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
   tile = true, tileSize = 16, edgeSize = 16,
+  insets = { left = 3, right = 3, top = 3, bottom = 3 }
+}
+
+local bar_border = {
+  edgeFile = "Interface\\BUTTONS\\WHITE8X8",
+  tile = true, tileSize = 16, edgeSize = 2,
   insets = { left = 3, right = 3, top = 3, bottom = 3 }
 }
 
@@ -292,6 +322,17 @@ local function CreateBar(parent, i, background)
   parent.bars[i]:SetHeight(config.height - config.spacing)
   parent.bars[i]:SetFrameLevel(4)
 
+  parent.bars[i].border = parent.bars[i].border or CreateFrame("Frame", nil, parent)
+  parent.bars[i].border:SetPoint("TOPLEFT", parent.bars[i], "TOPLEFT", -2, 2)
+  parent.bars[i].border:SetPoint("BOTTOMRIGHT", parent.bars[i], "BOTTOMRIGHT", 2, -2)
+  parent.bars[i].border:SetFrameLevel(1)
+  parent.bars[i].border:SetBackdrop(bar_border)
+  parent.bars[i].border:SetBackdropBorderColor(0, 0, 0, 1)
+
+  parent.bars[i].bg = parent.bars[i].bg or parent.bars[i]:CreateTexture(nil, "BACKGROUND")
+  parent.bars[i].bg:SetTexture(textures[config.texture] or textures[1])
+  parent.bars[i].bg:SetAllPoints(parent.bars[i])
+
   parent.bars[i].lowerBar = parent.bars[i].lowerBar or CreateFrame("StatusBar", "ShaguDPSLowerBar" .. i, parent)
   parent.bars[i].lowerBar:SetStatusBarTexture(textures[config.texture] or textures[1])
   parent.bars[i].lowerBar:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -config.height * (i-1) - 22)
@@ -299,6 +340,13 @@ local function CreateBar(parent, i, background)
   parent.bars[i].lowerBar:SetStatusBarColor(1, 1, 1, .4)
   parent.bars[i].lowerBar:SetHeight(config.height - config.spacing)
   parent.bars[i].lowerBar:SetFrameLevel(2)
+
+  parent.bars[i].classIcon = parent.bars[i].classIcon or parent.bars[i]:CreateTexture(nil, "OVERLAY")
+  parent.bars[i].classIcon:ClearAllPoints()
+  parent.bars[i].classIcon:SetWidth(parent.bars[i]:GetHeight())
+  parent.bars[i].classIcon:SetHeight(parent.bars[i]:GetHeight())
+  parent.bars[i].classIcon:SetPoint("LEFT", parent.bars[i], "LEFT", 2, 0)
+  parent.bars[i].classIcon:Hide()
 
   parent.bars[i].textLeft = parent.bars[i].textLeft or parent.bars[i]:CreateFontString("Status", "OVERLAY", "GameFontNormal")
   parent.bars[i].textLeft:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
@@ -337,8 +385,8 @@ local function btnEnter()
     end
     GameTooltip:Show()
   end
-
-  this:SetBackdropBorderColor(1,.8,0,1)
+  this:SetBackdropBorderColor(1,.8,0,0)
+  this:SetAlpha(1)
 end
 
 local function btnLeave()
@@ -346,7 +394,12 @@ local function btnLeave()
     GameTooltip:Hide()
   end
 
-  this:SetBackdropBorderColor(.4,.4,.4,1)
+  this:SetBackdropBorderColor(.4,.4,.4,0)
+  if this == this:GetParent().btnSegment or  this == this:GetParent().btnMode then
+    this:SetAlpha(1)
+  else
+    this:SetAlpha(0)
+  end
 end
 
 local function announce(text)
@@ -447,6 +500,9 @@ local function GetData(unitdata, values)
     values.name = unit
   end
 
+  local unit_class = data["classes"][unit]
+  values.class = classes[unit_class] and unit_class or nil
+
   -- write color into view
   -- default to faded name colors
   local r, g, b = str2rgb(values.name)
@@ -456,11 +512,14 @@ local function GetData(unitdata, values)
   values.color.b = b / 4 + .4
 
   -- replace color by class colors if possible
-  if classes[data["classes"][unit]] then
+  if classes[unit_class] then
     -- set color to player class colors
-    values.color.r = RAID_CLASS_COLORS[data["classes"][unit]].r
-    values.color.g = RAID_CLASS_COLORS[data["classes"][unit]].g
-    values.color.b = RAID_CLASS_COLORS[data["classes"][unit]].b
+    local c = class_colors[unit_class] or RAID_CLASS_COLORS[class]
+    if c then
+      values.color.r = c.r
+      values.color.g = c.g
+      values.color.b = c.b
+    end
 
     if config.pastel == 1 then
       values.color.r = (values.color.r + .5) * .5
@@ -542,6 +601,8 @@ local function Refresh(self, force, report)
   for id, bar in pairs(self.bars) do
     bar.lowerBar:Hide()
     bar:Hide()
+    bar.border:Hide()
+    bar.bg:Hide()
   end
 
   -- set view to damage or heal
@@ -598,6 +659,21 @@ local function Refresh(self, force, report)
 
       self.bars[bar]:SetStatusBarColor(self.values.color.r, self.values.color.g, self.values.color.b)
       self.bars[bar].textLeft:SetText(i .. ". " .. self.values.name)
+      self.bars[bar].bg:SetTexture(self.values.color.r * 0.5, self.values.color.g * 0.5, self.values.color.b * 0.5, 0.8)
+
+      if self.bars[bar].classIcon then
+        local coords = self.values.class and class_icon_coords[self.values.class]
+        if coords then
+          self.bars[bar].classIcon:SetTexture("Interface\\Addons\\ShaguDPS\\img\\ToxiClasses")
+          self.bars[bar].classIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+          self.bars[bar].classIcon:Show()
+          self.bars[bar].textLeft:ClearAllPoints()
+          self.bars[bar].textLeft:SetPoint("TOPLEFT", self.bars[bar], "TOPLEFT", self.bars[bar].classIcon:GetWidth() + 2, 1)
+          self.bars[bar].textLeft:SetPoint("BOTTOMRIGHT", self.bars[bar], "BOTTOMRIGHT", -5, 0)
+        else
+          self.bars[bar].classIcon:Hide()
+        end
+      end
 
       local a = template.bar_string_params
       local line = string.format(template.bar_string,
@@ -605,6 +681,8 @@ local function Refresh(self, force, report)
 
       self.bars[bar].textRight:SetText(line)
       self.bars[bar]:Show()
+      self.bars[bar].border:Show()
+      self.bars[bar].bg:Show()
 
       -- report to chat if flag is set
       if report and i <= 10 then
@@ -728,8 +806,8 @@ local function CreateWindow(wid)
   frame.btnSegment:SetBackdropColor(.2,.2,.2,1)
   frame.btnSegment:SetBackdropBorderColor(.4,.4,.4,1)
 
-  frame.btnSegment.caption = frame.btnSegment:CreateFontString("ShaguDPSTitle", "OVERLAY", "GameFontWhite")
-  frame.btnSegment.caption:SetFont(STANDARD_TEXT_FONT, 9)
+  frame.btnSegment.caption = frame.btnSegment:CreateFontString("ShaguDPSTitle", "OVERLAY", "GameFontHighlight")
+  frame.btnSegment.caption:SetFont(STANDARD_TEXT_FONT, 12)
   frame.btnSegment.caption:SetText("Overall")
   frame.btnSegment.caption:SetAllPoints()
   frame.btnSegment.tooltip = { "Select Segment", "|cffffffffOverall, Current" }
@@ -762,8 +840,8 @@ local function CreateWindow(wid)
   frame.btnMode:SetBackdropColor(.2,.2,.2,1)
   frame.btnMode:SetBackdropBorderColor(.4,.4,.4,1)
 
-  frame.btnMode.caption = frame.btnMode:CreateFontString("ShaguDPSTitle", "OVERLAY", "GameFontWhite")
-  frame.btnMode.caption:SetFont(STANDARD_TEXT_FONT, 9)
+  frame.btnMode.caption = frame.btnMode:CreateFontString("ShaguDPSTitle", "OVERLAY", "GameFontHighlight")
+  frame.btnMode.caption:SetFont(STANDARD_TEXT_FONT, 12)
   frame.btnMode.caption:SetText("Mode: Damage")
   frame.btnMode.caption:SetAllPoints()
   frame.btnMode.tooltip = { "Select Mode", "|cffffffffDamage, DPS, Heal, HPS" }
@@ -829,6 +907,7 @@ local function CreateWindow(wid)
   frame.btnAnnounce:SetBackdrop(backdrop)
   frame.btnAnnounce:SetBackdropColor(.2,.2,.2,1)
   frame.btnAnnounce:SetBackdropBorderColor(.4,.4,.4,1)
+  frame.btnAnnounce:SetAlpha(0)
   frame.btnAnnounce.tooltip = {
     "Send to Chat",
     { "|cffffffffClick", "|cffaaaaaaAsk to anounce all data."},
@@ -870,6 +949,7 @@ local function CreateWindow(wid)
   frame.btnSettings:SetBackdrop(backdrop)
   frame.btnSettings:SetBackdropColor(.2,.2,.2,1)
   frame.btnSettings:SetBackdropBorderColor(.4,.4,.4,1)
+  frame.btnSettings:SetAlpha(0)
   frame.btnSettings.tooltip = {
     "Settings",
     "|cffffffffShow Configuration Window"
@@ -898,6 +978,7 @@ local function CreateWindow(wid)
   frame.btnReset:SetBackdrop(backdrop)
   frame.btnReset:SetBackdropColor(.2,.2,.2,1)
   frame.btnReset:SetBackdropBorderColor(.4,.4,.4,1)
+  frame.btnReset:SetAlpha(0)
   frame.btnReset.tooltip = {
     "Reset Data",
     { "|cffffffffClick", "|cffaaaaaaAsk to reset all data."},
@@ -930,6 +1011,7 @@ local function CreateWindow(wid)
   frame.btnWindow:SetBackdrop(backdrop)
   frame.btnWindow:SetBackdropColor(.2,.2,.2,1)
   frame.btnWindow:SetBackdropBorderColor(.4,.4,.4,1)
+  frame.btnWindow:SetAlpha(0)
 
   frame.btnWindow.tex = frame.btnWindow:CreateTexture()
   frame.btnWindow.tex:SetWidth(10)
@@ -997,6 +1079,7 @@ local function CreateWindow(wid)
       this:GetParent():StartSizing()
     end
   end)
+   frame.btnResize:SetAlpha(0)
 
   frame.btnResize:SetScript("OnMouseUp", function()
     this:GetParent().sizing = nil
